@@ -16,18 +16,16 @@ uint8_t dimmer = 0;
 void setup() {
   // put your setup code here, to run once:
    Serial.begin(115200);
-   Serial.println("restart");
-   dimmer = confmanager.read_dimmer();
-   delay(10);
-   Serial.println("dimmer ="+(String)dimmer);
-   state = confmanager.read_control();
-   delay(10);
-   Serial.println("control ="+(String)state);
-   wdt_enable(WDTO_2S);
    pinMode(5,OUTPUT);
-   digitalWrite(5,state);
    pinMode(13,OUTPUT);
+   Serial.println("$RESTART");
+   state = confmanager.read_control();
+   digitalWrite(5,state);
+   //Serial.println("control ="+(String)state);
+   dimmer = confmanager.read_dimmer();
+   //Serial.println("dimmer ="+(String)dimmer);  
    digitalWrite(13,LOW);
+   wdt_enable(WDTO_2S);
 }
 
 void loop() {
@@ -37,17 +35,13 @@ void loop() {
     if(c == '#'){
       String serial_string = Serial.readStringUntil('\r');
       String command = parse_string(serial_string,'?',0);
-      String command_value = parse_string(serial_string,'?',1);
+      uint8_t command_value = parse_string(serial_string,'?',1).toInt();
       if(command == "COM"){
-        if(command_value == "1"){
-          confmanager.set_control(1);
-          digitalWrite(5,HIGH);
-          Serial.println("1");
-        }
-        else{
-          confmanager.set_control(0);
-          digitalWrite(5,LOW);
-          Serial.println("1");
+        if(command_value == 0||command_value == 1){
+          digitalWrite(5,command_value);
+          if(command_value != confmanager.read_control()){
+            confmanager.set_control(command_value);
+          }
         }
       }
       else if(command == "GET"){
@@ -55,11 +49,11 @@ void loop() {
           String pzem_data = get_data();
           delay(10);
           if(pzem_data.length()>15){
-            Serial.println("post," + pzem_data);
+            Serial.println("$POST?" + pzem_data);
           }
-        else{
-          return;
-        }
+          else if(pzem_data == ""){
+            Serial.println("$POST?");
+          }
       }
     }
     else if(command == "RSTWH"){
@@ -69,6 +63,9 @@ void loop() {
       resetFunc();
     }
     delay(10);
+    }
+    else{
+      return;
     }
   }
   digitalWrite(13,HIGH);
@@ -99,51 +96,50 @@ String get_data(){
   float voltage = pzem.voltage();
   if( !isnan(voltage) ){
     pzem_data += String(voltage);
-    pzem_data += ",";
+    pzem_data += "|";
   }
   else{
-    return;
+    return "";
   }
   float current = pzem.current();
     if( !isnan(current) ){
       pzem_data += String(current);
-      pzem_data += ",";
+      pzem_data += "|";
     } 
     else {
-      return;
+      return "";
     }
    float power = pzem.power();
     if( !isnan(power) ){
       pzem_data += String(power);
-      pzem_data += ",";
+      pzem_data += "|";
     } 
     else {
-      return;
+      return "";
     }
    float energy = pzem.energy();
     if( !isnan(energy) ){
       pzem_data += String(energy);
-      pzem_data += ",";
+      pzem_data += "|";
     } 
     else {
-      return;
+      return "";
     }
    float frequency = pzem.frequency();
     if( !isnan(frequency) ){
       pzem_data += String(frequency);
-      pzem_data += ",";
+      pzem_data += "|";
     } 
     else {
-      return;
+      return "";
     }
    float pf = pzem.pf();
     if( !isnan(pf) ){
       pzem_data += String(pf);
     } 
     else {
-      return;
+      return "";
     }
-    //Serial.begin(9600);
     delay(10);
     return pzem_data;
 }
